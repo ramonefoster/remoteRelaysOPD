@@ -17,6 +17,7 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
         Ui_MainWindow.__init__(self)
         self.setupUi(self)
 
+        #Settings
         with open("config.json", 'r+', encoding='utf-8') as file:
             setup = json.load(file)
             setup["Config"]
@@ -27,27 +28,36 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
         self.brainbox = None
         self.status = [0,0,0,0,0,0,0,0,0,0,0,0]
         self.relays = self.status[0:4]
-        print(self.relays)
+        self.dis = self.status[4::]
 
+        #Icons
         self.iconRelayOn = QtGui.QPixmap(r"icons\relayon.png")
         self.iconRelayOff = QtGui.QPixmap(r"icons\relayoff.png")
+        self.iconDIon = QtGui.QPixmap(r"icons\statusactive.png")
+        self.iconDIoff = QtGui.QPixmap(r"icons\statusinactive.png")
+
         #botoes
         self.btnRelay0.clicked.connect(lambda: self.activateRelay(relay=0))
         self.btnRelay1.clicked.connect(lambda: self.activateRelay(relay=1))
         self.btnRelay2.clicked.connect(lambda: self.activateRelay(relay=2))
         self.btnRelay3.clicked.connect(lambda: self.activateRelay(relay=3))
+        self.btnReconnect.clicked.connect(self.reconnect)
 
         self.connect()
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
         self.timer_status()
     
+    def save_log(self, msg):
+        with open("reports.log", "a") as file:
+            current_time = datetime.datetime.now().strftime("%d/%b/%Y %H:%M:%S")
+            file.write(f'{current_time}: {msg}\n')
+    
     def read_status(self):
         if self.brainbox:            
             rxdata = self.brainbox.command_response(b'@01')
             if rxdata is None:
-                current_time = datetime.datetime.now().strftime("%d/%b/%Y %H:%M:%S")
-                self.txtLog.append(f"{current_time} - Failed Status Response.\n")
+                self.save_log(f"Failed Status Response.")
             else:
                 try:
                     hex_string = str(rxdata).split("'")[1].split(">")[1]  
@@ -55,10 +65,11 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
                     binary_string = format(hex_integer, 'b')
                     self.status = [int(digit) for digit in binary_string.zfill(12)]
                     self.relays = self.status[0:4]
+                    self.dis = self.status[4::]
                     self.relays.reverse()
-                except:
-                    current_time = datetime.datetime.now().strftime("%d/%b/%Y %H:%M:%S")
-                    self.txtLog.append(f"{current_time} - Error Status Response.\n")
+                    self.dis.reverse()
+                except:                    
+                    self.save_log(f"Error Status Response.")
 
     def activateRelay(self, relay):
         self.read_status()
@@ -75,30 +86,25 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
             f.truncate()
     
     def reconnect(self):
-        self.brainbox = None
+        self.device_ip = self.txtIP.text()
         self.connect()
 
     def update(self):
         if self.brainbox:
             interval = self.boxInterval.currentText().split()[0]
-            if round(time.time(),0) % int(interval) == 0:
+            if round(time.time(),0) % float(interval) == 0:
                 self.read_status()
-                if self.status[3] == 1:
-                    self.btnRelay0.setIcon(QtGui.QIcon(self.iconRelayOn))
-                elif self.status[3] == 0:
-                    self.btnRelay0.setIcon(QtGui.QIcon(self.iconRelayOff))
-                if self.status[2] == 1:
-                    self.btnRelay1.setIcon(QtGui.QIcon(self.iconRelayOn))
-                elif self.status[2] == 0:
-                    self.btnRelay1.setIcon(QtGui.QIcon(self.iconRelayOff))
-                if self.status[1] == 1:
-                    self.btnRelay2.setIcon(QtGui.QIcon(self.iconRelayOn))
-                elif self.status[1] == 0:
-                    self.btnRelay2.setIcon(QtGui.QIcon(self.iconRelayOff))
-                if self.status[0] == 1:
-                    self.btnRelay3.setIcon(QtGui.QIcon(self.iconRelayOn))
-                elif self.status[0] == 0:
-                    self.btnRelay3.setIcon(QtGui.QIcon(self.iconRelayOff))
+                for i in range(4):  # Assuming you want to iterate over the first 4 elements of self.relays
+                    if self.relays[i] == 1:
+                        getattr(self, f'btnRelay{i}').setIcon(QtGui.QIcon(self.iconRelayOn))
+                    elif self.relays[i] == 0:
+                        getattr(self, f'btnRelay{i}').setIcon(QtGui.QIcon(self.iconRelayOff))
+
+                for i in range(8):
+                    if self.dis[i] == 1:
+                        getattr(self, f'di{i}').setPixmap((self.iconDIon))
+                    elif self.dis[i] == 0:
+                        getattr(self, f'di{i}').setPixmap((self.iconDIoff))
 
     def timer_status(self):
         self.timer.start(1000)
