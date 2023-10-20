@@ -43,7 +43,7 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
         self.btnRelay3.clicked.connect(lambda: self.activateRelay(relay=3))
         self.btnReconnect.clicked.connect(self.reconnect)
 
-        self.connect()
+        # self.connect()
         self.timer = QTimer()
         self.timer.timeout.connect(self.update)
         self.timer_status()
@@ -93,6 +93,10 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
         if self.brainbox:
             interval = self.boxInterval.currentText().split()[0]
             if round(time.time(),0) % float(interval) == 0:
+                if self.brainbox.status:
+                    self.statConnect.setText("Online")
+                else:
+                    self.statConnect.setText("Offline")
                 self.read_status()
                 for i in range(4):  # Assuming you want to iterate over the first 4 elements of self.relays
                     if self.relays[i] == 1:
@@ -104,13 +108,15 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
                     if self.dis[i] == 1:
                         getattr(self, f'di{i}').setPixmap((self.iconDIon))
                     elif self.dis[i] == 0:
-                        getattr(self, f'di{i}').setPixmap((self.iconDIoff))
+                        getattr(self, f'di{i}').setPixmap((self.iconDIoff))               
 
     def timer_status(self):
         self.timer.start(1000)
     
     def connect(self):
         self.brainbox = brainboxes.AsciiIo(ipaddr=self.device_ip, port=9500, timeout=1.0)
+        if not self.brainbox.status:
+            self.brainbox = None
         if self.brainbox:            
             self.txtName.setText(self.brainbox.command_response(b"$01M").decode()[3::])
     
