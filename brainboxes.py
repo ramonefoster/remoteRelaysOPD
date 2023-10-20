@@ -5,21 +5,24 @@ import time
 class AsciiIo:
     """Example class for communication with Brainboxes ED-range products
     Tested with Python 2.7.9 and 3.4.3 on Windows, and 2.7.6 and 3.4.0 on Linux
-    """
-    
-    def __init__(self, ipaddr, port=9500, timeout=5.0):
+    """ 
+    def __init__(self, ipaddr, port=9500, timeout=3.0):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        self.timeout = timeout
+        self.recv_chunk_size = 32
+        # self.connect(ipaddr, port)
+
+    def connect(self, ipaddr, port):
         try:
             self.sock.connect((ipaddr, port))
             self.status = True
-        except (ConnectionRefusedError, OSError) as e:
-            print(f"Error connecting to the server: {e}")
+            return "Connected"
+        except (ConnectionRefusedError, OSError) as e:            
             self.status = False
             # Handle the error here, e.g., log it or raise an exception as needed.
             self.sock = None
-        self.timeout = timeout
-        self.recv_chunk_size = 32
-         
+            return (f"Error connecting to the server.")
 
     def command_noresponse(self, txmessage):
         try:
@@ -78,6 +81,7 @@ class AsciiIo:
                     self.status = False
                     # Handle the error here, you can raise an exception or log it as needed.
             elif tleft == 0.0:
+                self.status = False
                 # Handle timeout as needed.
                 return None
         return data[:endpos]

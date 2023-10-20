@@ -30,6 +30,9 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
         self.relays = self.status[0:4]
         self.dis = self.status[4::]
 
+        self.lock_flag = False
+        self.err_flag = False
+
         #Icons
         self.iconRelayOn = QtGui.QPixmap(r"icons\relayon.png")
         self.iconRelayOff = QtGui.QPixmap(r"icons\relayoff.png")
@@ -55,8 +58,10 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
     
     def read_status(self):
         if self.brainbox:            
+            self.lock_flag = True
             rxdata = self.brainbox.command_response(b'@01')
             if rxdata is None:
+                self.err_flag = True
                 self.save_log(f"Failed Status Response.")
             else:
                 try:
@@ -68,13 +73,16 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
                     self.dis = self.status[4::]
                     self.relays.reverse()
                     self.dis.reverse()
+                    self.lock_flag = False
+                    self.err_flag = False
                 except:                    
                     self.save_log(f"Error Status Response.")
 
     def activateRelay(self, relay):
-        self.read_status()
-        msg = f"#01A{relay}0{int(not self.relays[relay])}".encode()
-        self.brainbox.command_response(msg)
+        if self.brainbox and self.brainbox.status:
+            self.read_status()
+            msg = f"#01A{relay}0{int(not self.relays[relay])}".encode()
+            self.brainbox.command_response(msg)
     
     def save_config(self, key, value):        
         with open('config.json', 'r+', encoding='utf-8') as f:
@@ -95,9 +103,14 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
             if round(time.time(),0) % float(interval) == 0:
                 if self.brainbox.status:
                     self.statConnect.setText("Online")
+                    self.statConnect.setStyleSheet("color: forestgreen")
                 else:
                     self.statConnect.setText("Offline")
-                self.read_status()
+                    self.statConnect.setStyleSheet("color: indianred")
+                if not self.lock_flag:
+                    self.read_status()
+                if self.err_flag:
+                    self.save_log("Timeout occured.")
                 for i in range(4):  # Assuming you want to iterate over the first 4 elements of self.relays
                     if self.relays[i] == 1:
                         getattr(self, f'btnRelay{i}').setIcon(QtGui.QIcon(self.iconRelayOn))
@@ -115,6 +128,8 @@ class RemoteRelays(QtWidgets.QMainWindow, Ui_MainWindow):
     
     def connect(self):
         self.brainbox = brainboxes.AsciiIo(ipaddr=self.device_ip, port=9500, timeout=1.0)
+        msg = self.brainbox.connect(self.device_ip, 9500)
+        self.statusBar().showMessage(msg)
         if not self.brainbox.status:
             self.brainbox = None
         if self.brainbox:            
